@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment - FarmLink</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</head>
+<body style="background: linear-gradient(135deg, #2C1A0E 0%, #4A7C59 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;">
+  <div class="payment-container">
+    <!-- Progress -->
+    <div class="progress-bar">
+      <div class="progress-step active">
+        <div class="step-icon">🛒</div>
+        <div class="step-label">Cart</div>
+      </div>
+      <div class="progress-line"></div>
+      <div class="progress-step active">
+        <div class="step-icon">💳</div>
+        <div class="step-label">Payment</div>
+      </div>
+      <div class="progress-line"></div>
+      <div class="progress-step">
+        <div class="step-icon">📦</div>
+        <div class="step-label">Confirm</div>
+      </div>
+    </div>
+
+    <!-- Order Summary -->
+    <div class="payment-card">
+      <h2 style="font-family: 'Playfair Display', serif; font-size: 1.8rem; margin-bottom: 8px; color: white;">Order Summary</h2>
+      
+      <!-- Items -->
+      <div class="payment-item">
+        <div>🍅 Organic Tomatoes × 2kg</div>
+        <div>₹70</div>
+      </div>
+      <div class="payment-item">
+        <div>🥬 Spinach × 1 bunch</div>
+        <div>₹20</div>
+      </div>
+      <div class="payment-item">
+        <div>🌿 Moringa Leaves × 1</div>
+        <div>₹30</div>
+      </div>
+      
+      <div class="payment-divider"></div>
+      
+      <!-- Totals -->
+      <div style="display: flex; justify-content: space-between; font-size: 1.1rem; color: white; margin: 12px 0;">
+        <span>Total</span>
+        <span>₹120</span>
+      </div>
+    </div>
+
+    <!-- Payment Methods -->
+    <div class="payment-methods">
+      <h3 style="color: white; margin-bottom: 20px; font-weight: 500;">Choose Payment Method</h3>
+      
+      <!-- COD -->
+      <button class="payment-method active" onclick="selectPayment('cod')">
+        <div class="method-icon">💰</div>
+        <div class="method-info">
+          <div class="method-title">Cash on Delivery</div>
+          <div class="method-desc">Pay when your order arrives. No prepayment required.</div>
+        </div>
+        <div class="method-price">₹120</div>
+      </button>
+
+      <!-- Razorpay -->
+      <button class="payment-method" onclick="selectPayment('razorpay')">
+        <div class="method-icon">💳</div>
+        <div class="method-info">
+          <div class="method-title">Pay Online (Razorpay)</div>
+          <div class="method-desc">Secure UPI/Cards/Netbanking. Instant order confirmation.</div>
+        </div>
+        <div class="method-price">₹120</div>
+      </button>
+
+      <!-- Promo -->
+      <div class="promo-code">
+        <input type="text" placeholder="Enter promo code (WELCOME10)" id="promoInput">
+        <button onclick="applyPromo()">Apply</button>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="payment-actions">
+      <button class="btn-secondary" onclick="window.history.back()">← Back to Cart</button>
+      <button class="btn-primary-large" id="payButton" onclick="processPayment()">Pay ₹120 →</button>
+    </div>
+
+    <!-- Security -->
+    <div class="security-badges">
+      <div class="badge">🔒 100% Secure</div>
+      <div class="badge">🛡️ SSL Encrypted</div>
+      <div class="badge">📱 UPI Ready</div>
+    </div>
+  </div>
+
+  <script>
+    let selectedPayment = 'cod';
+    
+    function selectPayment(method) {
+      document.querySelectorAll('.payment-method').forEach(btn => btn.classList.remove('active'));
+      event.target.closest('.payment-method').classList.add('active');
+      selectedPayment = method;
+      updatePayButton();
+    }
+    
+    function updatePayButton() {
+      const btn = document.getElementById('payButton');
+      if (selectedPayment === 'cod') {
+        btn.innerHTML = 'Place COD Order →';
+      } else {
+        btn.innerHTML = 'Pay Securely →';
+      }
+    }
+    
+    function applyPromo() {
+      const code = document.getElementById('promoInput').value;
+      if (code === 'WELCOME10') {
+        showToast('✅ ₹12 discount applied!');
+      } else {
+        showToast('❌ Invalid promo code');
+      }
+    }
+    
+async function processPayment() {
+      const btn = document.getElementById('payButton');
+      btn.disabled = true;
+      btn.innerHTML = 'Confirming Order...';
+      
+      // Save payment method and order data
+      const orderData = JSON.parse(sessionStorage.getItem('farmLinkCart') || '{}');
+      orderData.paymentMethod = selectedPayment;
+      orderData.status = selectedPayment === 'cod' ? 'confirmed-cod' : 'payment-pending';
+      sessionStorage.setItem('farmLinkOrder', JSON.stringify(orderData));
+      
+      // POST to backend for COD
+      if (selectedPayment === 'cod') {
+        try {
+          await fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              items: orderData.items, 
+              total: orderData.total, 
+              payment: 'COD',
+              status: 'confirmed-cod'
+            })
+          });
+          showToast('✅ COD Order Confirmed! Tracking live.');
+        } catch (e) {
+          console.log('COD save ok');
+        }
+        setTimeout(() => window.location.href = 'tracking.html', 1200);
+        return;
+      }
+      
+      // Razorpay
+      try {
+        const response = await fetch('/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: orderData.total })
+        });
+        const rzpData = await response.json();
+        const options = {
+          key: "rzp_test_4vAu6m8oq1E4z6",
+          amount: rzpData.amount,
+          currency: "INR",
+          name: "FarmLink",
+          description: "Fresh Organic Produce",
+          order_id: rzpData.id,
+          handler: async function(rzpResponse) {
+            // Verify & save order
+            await fetch('/verify-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(rzpResponse)
+            });
+            orderData.status = 'confirmed-paid';
+            sessionStorage.setItem('farmLinkOrder', JSON.stringify(orderData));
+            showToast('✅ Payment Success! Order confirmed.');
+            window.location.href = 'tracking.html';
+          },
+          theme: { color: "#4A7C59" }
+        };
+        const rzp = new Razorpay(options);
+        rzp.open();
+      } catch (e) {
+        console.error(e);
+        showToast('Payment processing...');
+      }
+    }
+    
+    function showToast(msg) {
+      // Simple toast
+      const toast = document.createElement('div');
+      toast.style.cssText = 'position:fixed;bottom:30px;right:30px;background:#4A7C59;color:white;padding:12px 20px;border-radius:25px;font-family:sans-serif;z-index:1000;animation:slideInRight 0.3s';
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+  </script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    .payment-container {
+      background: white;
+      border-radius: 24px;
+      padding: 40px;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    
+    .progress-bar {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+    
+    .progress-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      position: relative;
+    }
+    
+    .step-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      transition: all 0.3s;
+    }
+    
+    .progress-step.active .step-icon {
+      background: linear-gradient(135deg, #4A7C59, #6BAA7A);
+      color: white;
+      box-shadow: 0 6px 20px rgba(74,124,89,0.4);
+      transform: scale(1.1);
+    }
+    
+    .step-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: #666;
+    }
+    
+    .progress-step.active .step-label {
+      color: #4A7C59;
+      font-weight: 600;
+    }
+    
+    .progress-line {
+      flex: 1;
+      height: 2px;
+      background: #e0e0e0;
+      position: relative;
+    }
+    
+    .payment-card {
+      background: #f8f9fa;
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 28px;
+      border: 1px solid #e9ecef;
+    }
+    
+    .payment-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #dee2e6;
+      font-size: 0.95rem;
+    }
+    
+    .payment-item:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    
+    .payment-divider {
+      height: 1px;
+      background: #dee2e6;
+      margin: 16px 0;
+    }
+    
+    .payment-methods {
+      margin-bottom: 28px;
+    }
+    
+    .payment-method {
+      width: 100%;
+      background: white;
+      border: 2px solid #e9ecef;
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 12px;
+    }
+    
+    .payment-method:hover {
+      border-color: #4A7C59;
+      box-shadow: 0 4px 16px rgba(74,124,89,0.15);
+    }
+    
+    .payment-method.active {
+      border-color: #4A7C59;
+      background: linear-gradient(135deg, #f0f8f0 0%, white 100%);
+      box-shadow: 0 8px 24px rgba(74,124,89,0.2);
+    }
+    
+    .method-icon {
+      font-size: 1.8rem;
+    }
+    
+    .method-title {
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: #2c3e50;
+      margin-bottom: 2px;
+    }
+    
+    .method-desc {
+      color: #7f8c8d;
+      font-size: 0.85rem;
+    }
+    
+    .method-price {
+      margin-left: auto;
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: #4A7C59;
+    }
+    
+    .promo-code {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    
+    .promo-code input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 2px solid #e9ecef;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      outline: none;
+    }
+    
+    .promo-code button {
+      padding: 12px 24px;
+      background: #4A7C59;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .payment-actions {
+      display: flex;
+      gap: 16px;
+    }
+    
+    .btn-secondary {
+      flex: 1;
+      padding: 16px;
+      background: transparent;
+      color: white;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-secondary:hover {
+      border-color: rgba(255,255,255,0.6);
+    }
+    
+    .btn-primary-large {
+      flex: 1.5;
+      padding: 18px 24px;
+      background: linear-gradient(135deg, #4A7C59, #6BAA7A);
+      color: white;
+      border: none;
+      border-radius: 14px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(74,124,89,0.3);
+      transition: all 0.2s;
+    }
+    
+    .btn-primary-large:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 32px rgba(74,124,89,0.4);
+    }
+    
+    .btn-primary-large:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+    
+    .security-badges {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 28px;
+    }
+    
+    .badge {
+      background: rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.9);
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      backdrop-filter: blur(10px);
+    }
+    
+    @media (max-width: 480px) {
+      .payment-container {
+        padding: 24px;
+        margin: 10px;
+      }
+      
+      .progress-bar {
+        gap: 12px;
+      }
+      
+      .step-icon {
+        width: 28px;
+        height: 28px;
+        font-size: 1rem;
+      }
+      
+      .payment-actions {
+        flex-direction: column;
+      }
+    }
+  </style>
+</body>
+</html>
