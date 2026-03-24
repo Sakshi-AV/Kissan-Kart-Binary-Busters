@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Tracking - FarmLink</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Back Header -->
+  <header style="background: var(--soil); padding: 16px 24px; display: flex; align-items: center; gap: 12px;">
+    <button onclick="window.history.back()" style="background: none; border: none; color: white; font-size: 1.4rem; cursor: pointer;">←</button>
+    <div style="color: white; font-weight: 600;">Live Tracking</div>
+  </header>
+
+  <div class="tracking-page">
+    <div style="margin-bottom:24px;">
+      <div class="section-title" style="margin-bottom:4px;">Live Order <span>Tracking</span></div>
+      <div style="color:#888;font-size:0.83rem;">Full logistics view — from Ravi's farm to your door</div>
+    </div>
+
+    <!-- ETA Banner -->
+    <div class="eta-banner">
+      <div>
+        <div class="eta-label">Estimated Arrival</div>
+        <div class="eta-time" id="etaTime">4:30 PM</div>
+        <div class="eta-sub">Today · 14 km remaining</div>
+      </div>
+      <div class="eta-countdown" id="etaCountdown"></div>
+    </div>
+
+    <div class="tracking-grid">
+      <!-- LEFT COLUMN -->
+      <div>
+        <!-- Map -->
+        <div class="map-card">
+          <div class="map-header">
+            <span class="map-title">🗺 Delivery Route</span>
+            <span class="map-live-badge"><span class="live-dot"></span>Live Tracking</span>
+          </div>
+          <div class="map-canvas" id="mapCanvas"></div>
+        </div>
+
+        <!-- Driver -->
+        <div class="driver-card">
+          <div class="driver-card-title">Delivery Partner</div>
+          <div class="driver-profile">
+            <div class="driver-avatar">🏍</div>
+            <div>
+              <div class="driver-name">Suresh Nayak</div>
+              <div class="driver-meta">FarmLink Certified · 3 yrs experience</div>
+              <div class="driver-rating">⭐ 4.8 · 2,140 deliveries</div>
+            </div>
+          </div>
+          <div class="driver-actions">
+            <button class="driver-btn driver-btn-call" onclick="showToast('📞 Calling Suresh Nayak…')">📞 Call Driver</button>
+            <button class="driver-btn driver-btn-msg" onclick="showToast('💬 Chat opened with Suresh')">💬 Message</button>
+          </div>
+          <div class="vehicle-info">
+            <div class="vehicle-icon">🛵</div>
+            <div>
+              <div class="vehicle-label">Vehicle</div>
+              <div class="vehicle-val">Honda Activa · KA-05 MN 7821</div>
+            </div>
+            <div style="margin-left:auto;text-align:right;">
+              <div class="vehicle-label">Speed</div>
+              <div class="vehicle-val" id="liveSpeed">32 km/h</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT COLUMN -->
+      <div>
+        <!-- Order Summary -->
+        <div class="order-summary-card">
+          <div class="order-summary-title">Order Summary</div>
+          <div class="order-id-row">
+            <div class="order-id-val">#FL-2847</div>
+            <span class="order-status-pill">🟢 Out for Delivery</span>
+          </div>
+          <div class="order-items-list" id="orderItems"></div>
+          <div class="order-total"><span>Total Paid</span><span id="orderTotal">₹120</span></div>
+          <div class="farmer-strip">
+            <div class="farmer-strip-avatar" style="background:#4A7C5918;">🧑‍🌾</div>
+            <div>
+              <div class="farmer-strip-name">Ravi Kumar's Farm</div>
+              <div class="farmer-strip-loc">📍 Tumkur, Karnataka · Organic certified</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="timeline-card">
+          <div class="timeline-title">Delivery Timeline</div>
+          <div id="timelineSteps"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+// Load order data from sessionStorage
+    const orderData = JSON.parse(sessionStorage.getItem('farmLinkOrder') || sessionStorage.getItem('farmLinkCart') || '{}');
+    
+    // Update status pill based on payment method
+    const statusPill = document.querySelector('.order-status-pill');
+    if (orderData.paymentMethod === 'cod') {
+      statusPill.textContent = '🟢 COD Confirmed';
+      statusPill.style.background = '#e8f5e9';
+    } else if (orderData.status === 'confirmed-paid') {
+      statusPill.textContent = '🟢 Paid & Confirmed';
+    }
+    
+    // Populate order items
+    document.getElementById('orderItems').innerHTML = orderData.items ? orderData.items.map(item => 
+      `<div class="order-item-row">
+        <span>${item.emoji} ${item.name} × ${item.qty}</span>
+        <span style="font-weight:600;">₹${item.price * item.qty}</span>
+      </div>`
+    ).join('') : '';
+    
+    document.getElementById('orderTotal').textContent = `₹${orderData.total || 120}`;
+    
+    // Tracking functionality (same as main page)
+    function renderTimeline() {
+      const timelineSteps = [
+        { title: "Order Confirmed", time: "8:14 AM", desc: "Payment received. Farmer notified.", done: true, icon: "✅" },
+        { title: "Harvesting Complete", time: "9:30 AM", desc: "Fresh produce picked from field.", done: true, icon: "🌾" },
+        { title: "Quality Packed", time: "11:00 AM", desc: "Inspected & packed in eco-friendly bags.", done: true, icon: "📦" },
+        { title: "Driver Pickup", time: "12:45 PM", desc: "Collected from farm.", done: true, icon: "🏍" },
+        { title: "Out for Delivery", time: "1:15 PM", desc: "14 km away via highway.", active: true, icon: "🚛" },
+        { title: "Delivered", time: "4:30 PM", desc: "OTP confirmed delivery.", icon: "🏠" }
+      ];
+      
+      document.getElementById('timelineSteps').innerHTML = timelineSteps.map(s => {
+        const cls = s.done ? 'done' : s.active ? 'active' : 'pending';
+        return `
+          <div class="tl-step ${cls}">
+            <div class="tl-dot">${s.done ? '✓' : s.active ? s.icon : s.icon}</div>
+            <div class="tl-content">
+              <div class="tl-row">
+                <div class="tl-step-title">${s.title}</div>
+                <div class="tl-time">${s.time}</div>
+              </div>
+              <div class="tl-desc">${s.desc}</div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+    
+    function renderMap() {
+      document.getElementById('mapCanvas').innerHTML = `
+        <iframe src="https://www.openstreetmap.org/export/embed.html?bbox=76.9%2C12.85%2C77.7%2C13.45&layer=mapnik&marker=13.3409%2C77.1009" style="width:100%;height:100%;border:none;" allowfullscreen loading="lazy"></iframe>`;
+    }
+    
+    let countdownInterval;
+    function startCountdown() {
+      let totalSecs = 8280; // ~2h18m
+      const el = document.getElementById('etaCountdown');
+      function tick() {
+        if (totalSecs <= 0) {
+          el.innerHTML = '<div style="color:var(--harvest);font-family:\'Playfair Display\',serif;font-size:1.2rem;font-weight:900;">Arriving now!</div>';
+          return;
+        }
+        const h = Math.floor(totalSecs / 3600);
+        const m = Math.floor((totalSecs % 3600) / 60);
+        const s = totalSecs % 60;
+        el.innerHTML = `
+          <div class="countdown-block"><div class="countdown-val">${h.toString().padStart(2,'0')}</div><div class="countdown-lbl">hrs</div></div>
+          <div class="countdown-block"><div class="countdown-val">${m.toString().padStart(2,'0')}</div><div class="countdown-lbl">min</div></div>
+          <div class="countdown-block"><div class="countdown-val">${s.toString().padStart(2,'0')}</div><div class="countdown-lbl">sec</div></div>`;
+        totalSecs--;
+      }
+      tick();
+      countdownInterval = setInterval(tick, 1000);
+    }
+    
+    function animateSpeed() {
+      const speeds = [28, 31, 35, 32, 30, 33, 36, 34, 29, 32];
+      let i = 0;
+      setInterval(() => {
+        document.getElementById('liveSpeed').textContent = speeds[i % speeds.length] + ' km/h';
+        i++;
+      }, 3000);
+    }
+    
+    // Init
+    window.addEventListener('load', () => {
+      renderTimeline();
+      renderMap();
+      startCountdown();
+      animateSpeed();
+    });
+    
+    // Global toast (for driver buttons)
+    function showToast(msg) {
+      const toast = document.createElement('div');
+      toast.style.cssText = `
+        position: fixed; top: 20px; right: 20px; 
+        background: #4A7C59; color: white; padding: 12px 20px; 
+        border-radius: 25px; font-family: sans-serif; z-index: 10000;
+        animation: slideInRight 0.3s ease;
+        box-shadow: 0 4px 12px rgba(74,124,89,0.4);
+      `;
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+  </script>
+</body>
+</html>
